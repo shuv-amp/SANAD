@@ -1,0 +1,45 @@
+.env
+.DS_Store
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+storage/
+sanad.db
+node_modules/
+dist/
+.vite/
+coverage/
+*.log
+*.tsbuildinfo
+apps/web/vite.config.js
+apps/web/vite.config.d.ts
+
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Python virtualenvs
+env/
+venv/
+
+# Temporary files
+*.swp
+*.swo
+*.bak
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Git LFS placeholder
+*.gitattributes
+
+# large sample outputs (commit separately or use LFS)
+samples/**/public-service-*.docx
+docs/demo-assets/sanad-demo-output-*.docx
+
