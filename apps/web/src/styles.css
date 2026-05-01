@@ -1,0 +1,248 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────
+  SANAD design system
+  ────────────────────────────────────────────────────────── */
+
+:root {
+  /* Brand palette */
+  --sanad-green-50: #eef7f2;
+  --sanad-green-100: #d4edde;
+  --sanad-green-200: #a8dabb;
+  --sanad-green-500: #2d8a5e;
+  --sanad-green-600: #1a5c3a;
+  --sanad-green-700: #164e32;
+  --sanad-green-800: #0f3b25;
+  --sanad-green-900: #0a2a1b;
+
+  /* Accent gradient */
+  --gradient-brand: linear-gradient(135deg, #1a5c3a 0%, #2d8a5e 50%, #34a065 100%);
+  --gradient-brand-hover: linear-gradient(135deg, #164e32 0%, #1a5c3a 50%, #2d8a5e 100%);
+  --gradient-header: linear-gradient(135deg, #0f3b25 0%, #1a5c3a 40%, #2d8a5e 100%);
+  --gradient-subtle: linear-gradient(180deg, #fafaf8 0%, #f3f2ed 100%);
+
+  /* Surface */
+  --surface-page: #f5f4f0;
+  --surface-card: #ffffff;
+  --surface-elevated: #ffffff;
+  --surface-hover: #f9f9f8;
+
+  /* Text & Borders */
+  --text-primary: #0c0a09;
+  --text-secondary: #57534e;
+  --text-tertiary: #a8a29e;
+  --border-light: rgba(214, 211, 209, 0.6);
+  --border-medium: #d6d3d1;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 18, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 18, 0.06), 0 1px 2px rgba(15, 23, 18, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 23, 18, 0.07), 0 1px 3px rgba(15, 23, 18, 0.04);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 18, 0.08), 0 2px 6px rgba(15, 23, 18, 0.04);
+  --shadow-glow-green: 0 0 20px rgba(45, 138, 94, 0.15);
+
+  /* Typography */
+  color: var(--text-primary);
+  background: var(--surface-page);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme="dark"] {
+  --surface-page: #121212;
+  --surface-card: #1e1e1e;
+  --surface-elevated: #242424;
+  --surface-hover: #2a2a2a;
+
+  --text-primary: #f5f4f0;
+  --text-secondary: #a8a29e;
+  --text-tertiary: #57534e;
+  --border-light: rgba(87, 83, 78, 0.4);
+  --border-medium: #57534e;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.5);
+  
+  --sanad-green-50: #0a1f14;
+  --sanad-green-100: #102d1d;
+  --sanad-green-200: #1a4b31;
+  --sanad-green-500: #2d8a5e;
+  --sanad-green-600: #34a065;
+  --sanad-green-700: #4ade80;
+  --sanad-green-800: #86efac;
+  --sanad-green-900: #bbf7d0;
+
+  color: var(--text-primary);
+}
+
+
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family:
+    "Inter",
+    "Noto Sans Devanagari",
+    "Noto Sans",
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+input[type="file"]::file-selector-button {
+  font: inherit;
+}
+
+::selection {
+  background: var(--sanad-green-200);
+  color: var(--sanad-green-900);
+}
+
+/* ──────────────────────────────────────────────────────────
+   Animations
+   ────────────────────────────────────────────────────────── */
+
+@keyframes sanad-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sanad-fade-in-fast {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes sanad-pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.6; transform: scale(1.3); }
+}
+
+@keyframes sanad-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes sanad-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sanad-slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sanad-progress-fill {
+  from { width: 0; }
+}
+
+@keyframes sanad-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Utility classes */
+.sanad-animate-in {
+  animation: sanad-fade-in 0.35s ease-out both;
+}
+
+.sanad-animate-slide-up {
+  animation: sanad-slide-up 0.4s ease-out both;
+}
+
+.sanad-stagger-1 { animation-delay: 0.05s; }
+.sanad-stagger-2 { animation-delay: 0.1s; }
+.sanad-stagger-3 { animation-delay: 0.15s; }
+.sanad-stagger-4 { animation-delay: 0.2s; }
+
+/* Live status dot */
+.sanad-live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.sanad-live-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: inherit;
+  opacity: 0.4;
+  animation: sanad-pulse-live 2s ease-in-out infinite;
+}
+
+.sanad-live-dot--green  { background: #22c55e; }
+.sanad-live-dot--amber  { background: #f59e0b; }
+.sanad-live-dot--red    { background: #ef4444; }
+.sanad-live-dot--gray   { background: #a8a29e; }
+
+/* Processing shimmer */
+.sanad-shimmer {
+  background-image: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: sanad-shimmer 1.8s ease-in-out infinite;
+}
+
+/* Progress bar fill */
+.sanad-progress-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sanad-green-100);
+  overflow: hidden;
+}
+
+.sanad-progress-bar__fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--gradient-brand);
+  transition: width 0.6s ease-out;
+}
+
+/* Card hover lift */
+.sanad-card-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.sanad-card-hover:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Gradient text utility */
+.sanad-gradient-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Spinner */
+.sanad-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(45, 138, 94, 0.2);
+  border-top-color: var(--sanad-green-500);
+  border-radius: 50%;
+  animation: sanad-spin 0.7s linear infinite;
+}
+
+/* Header accent bar */
+.sanad-header-accent {
+  height: 3px;
+  background: var(--gradient-brand);
+}
