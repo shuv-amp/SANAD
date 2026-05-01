@@ -6,6 +6,14 @@ SANAD is a hackathon prototype for public-service document translation. It combi
 Upload -> Parse -> Protect -> Memory -> Provider -> Review -> Export / Feedback pack
 ```
 
+## Preview
+
+| Dashboard & Intake | Review Interface |
+| :--- | :--- |
+| ![Dashboard](docs/demo-assets/screenshots/00-dashboard.png) | ![Review Interface](docs/demo-assets/screenshots/02-review-interface.png) |
+| *Translation overview and document intake* | *Protected entity checks and glossary matches* |
+
+
 ## What SANAD does
 
 - Parses DOCX, PDF, CSV/TSV, and text documents into reviewable segments.
