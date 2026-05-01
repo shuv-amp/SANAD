@@ -8,10 +8,15 @@ Upload -> Parse -> Protect -> Memory -> Provider -> Review -> Export / Feedback 
 
 ## Preview
 
-| Dashboard & Intake | Review Interface |
-| :--- | :--- |
-| ![Dashboard](docs/demo-assets/screenshots/00-dashboard.png) | ![Review Interface](docs/demo-assets/screenshots/02-review-interface.png) |
-| *Translation overview and document intake* | *Protected entity checks and glossary matches* |
+### Dashboard & Intake
+![Dashboard](docs/demo-assets/screenshots/00-dashboard.png)
+*Translation overview and document intake*
+
+---
+
+### Review Interface
+![Review Interface](docs/demo-assets/screenshots/02-review-interface.png)
+*Protected entity checks and glossary matches*
 
 
 ## What SANAD does
