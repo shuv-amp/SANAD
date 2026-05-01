@@ -1,0 +1,61 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      SANAD_DATABASE_URL: sqlite:////workspace/data/sanad.db
+      SANAD_STORAGE_ROOT: /workspace/data/storage
+      SANAD_ACTIVE_PROVIDER: ${SANAD_ACTIVE_PROVIDER:-fixture}
+      SANAD_TMT_API_KEY: ${SANAD_TMT_API_KEY:-}
+      SANAD_TMT_OFFICIAL_ENDPOINT: ${SANAD_TMT_OFFICIAL_ENDPOINT:-https://tmt.ilprl.ku.edu.np/lang-translate}
+      SANAD_TMT_API_ENDPOINT: ${SANAD_TMT_API_ENDPOINT:-https://tmt.ilprl.ku.edu.np}
+      SANAD_TMT_ENABLE_FALLBACK: ${SANAD_TMT_ENABLE_FALLBACK:-true}
+      SANAD_TMT_TIMEOUT_SECONDS: ${SANAD_TMT_TIMEOUT_SECONDS:-20}
+      SANAD_TMT_RATE_LIMIT_DELAY: ${SANAD_TMT_RATE_LIMIT_DELAY:-0.1}
+      SANAD_GOTENBERG_URL: http://gotenberg:3000
+    ports:
+      - "8000:8000"
+    volumes:
+      - sanad-data:/workspace/data
+    depends_on:
+      gotenberg:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    environment:
+      LIBREOFFICE_AUTO_START: "true"
+      LIBREOFFICE_MAX_QUEUE_SIZE: "20"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  sanad-data:
+

@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+**/__pycache__
+**/.pytest_cache
+**/node_modules
+**/dist
+**/.DS_Store
+apps/api/sanad.db
+apps/api/live-smoke.db
+apps/api/storage
+apps/web/.vite
+
