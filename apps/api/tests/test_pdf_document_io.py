@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import fitz
+import pytest
 
-from sanad_api.services.pdf_document_io import export_pdf_document, parse_pdf_document
+from sanad_api.services.pdf_document_io import DEVANAGARI_FONT_PATH, export_pdf_document, parse_pdf_document
 
 
 def test_parse_pdf_document_into_ordered_lines(tmp_path: Path) -> None:
@@ -54,6 +55,8 @@ def test_parse_pdf_document_skips_centered_footer_page_numbers(tmp_path: Path) -
 
 
 def test_export_pdf_document_in_same_format(tmp_path: Path) -> None:
+    if not DEVANAGARI_FONT_PATH.exists():
+        pytest.skip("Devanagari font not available for PDF export test.")
     original = tmp_path / "notice.pdf"
     output = tmp_path / "translated.pdf"
     _create_pdf(

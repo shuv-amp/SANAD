@@ -1,5 +1,7 @@
+import shutil
 from pathlib import Path
 
+import pytest
 from docx import Document
 
 from sanad_api.services.tabular_document_io import export_tabular_document, parse_tabular_document
@@ -26,6 +28,8 @@ def test_parse_txt_document_into_ordered_blocks(tmp_path: Path) -> None:
 
 
 def test_parse_rtf_document_via_textutil(tmp_path: Path) -> None:
+    if shutil.which("textutil") is None:
+        pytest.skip("textutil is not available on this runner.")
     source = tmp_path / "notice.rtf"
     source.write_text(
         r"{\rtf1\ansi Certificate of Residence Request\par\par Please submit this form to the Ward Office.\par\par Fee: NPR 500\par}",

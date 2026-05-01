@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import runpy
 import zipfile
 from pathlib import Path
 
@@ -16,13 +17,31 @@ from sanad_api.config import Settings, get_settings
 from sanad_api.database import Base, get_db
 from sanad_api.main import create_app
 from sanad_api.services.glossary import seed_default_glossary
+from sanad_api.services.pdf_document_io import DEVANAGARI_FONT_PATH
 
 SAMPLES_DIR = Path(__file__).resolve().parents[3] / "samples" / "demo"
 ROOT_DIR = Path(__file__).resolve().parents[3]
+_FIXTURES_READY = False
+
+
+def _ensure_demo_fixtures() -> None:
+    global _FIXTURES_READY
+    if _FIXTURES_READY:
+        return
+    if (SAMPLES_DIR / "public-service-1.docx").exists():
+        _FIXTURES_READY = True
+        return
+    script_path = ROOT_DIR / "apps" / "api" / "scripts" / "create_demo_fixtures.py"
+    try:
+        runpy.run_path(str(script_path), run_name="__main__")
+    except Exception as exc:
+        pytest.skip(f"demo fixtures could not be generated: {exc}")
+    _FIXTURES_READY = True
 
 
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _ensure_demo_fixtures()
     monkeypatch.setenv("SANAD_STORAGE_ROOT", str(tmp_path / "storage"))
     monkeypatch.setenv("SANAD_ACTIVE_PROVIDER", "fixture")
     get_settings.cache_clear()
@@ -197,6 +216,8 @@ def test_csv_document_processes_and_exports_in_same_format(client: TestClient, t
 
 
 def test_pdf_document_processes_and_exports_in_same_format(client: TestClient, tmp_path: Path) -> None:
+    if not DEVANAGARI_FONT_PATH.exists():
+        pytest.skip("Devanagari font not available for PDF export test.")
     source = tmp_path / "notice.pdf"
     _create_pdf(
         source,

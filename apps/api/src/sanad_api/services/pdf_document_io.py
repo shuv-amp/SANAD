@@ -95,7 +95,7 @@ def _insert_translated_line(page: fitz.Page, location: dict[str, Any], translate
     font_name = "helv"
     font_file = None
 
-    if contains_devanagari(translated_text):
+    if contains_devanagari(translated_text) and DEVANAGARI_FONT_PATH.exists():
         font_name = "sanad-devanagari"
         font_file = str(DEVANAGARI_FONT_PATH)
         page.insert_font(fontname=font_name, fontfile=font_file)
