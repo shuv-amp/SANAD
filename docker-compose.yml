@@ -3,10 +3,11 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    env_file: .env
     environment:
       SANAD_DATABASE_URL: sqlite:////workspace/data/sanad.db
       SANAD_STORAGE_ROOT: /workspace/data/storage
-      SANAD_ACTIVE_PROVIDER: ${SANAD_ACTIVE_PROVIDER:-fixture}
+      SANAD_ACTIVE_PROVIDER: ${SANAD_ACTIVE_PROVIDER:-tmt_api}
       SANAD_TMT_API_KEY: ${SANAD_TMT_API_KEY:-}
       SANAD_TMT_OFFICIAL_ENDPOINT: ${SANAD_TMT_OFFICIAL_ENDPOINT:-https://tmt.ilprl.ku.edu.np/lang-translate}
       SANAD_TMT_API_ENDPOINT: ${SANAD_TMT_API_ENDPOINT:-https://tmt.ilprl.ku.edu.np}
