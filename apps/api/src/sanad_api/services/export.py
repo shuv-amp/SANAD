@@ -11,7 +11,7 @@ from sanad_api.models import Document, Segment
 from sanad_api.services.docx_io import export_docx
 from sanad_api.services.pdf_document_io import PDF_DOCUMENT_TYPES, export_pdf_document
 from sanad_api.services.storage import export_path
-from sanad_api.services.tabular_document_io import TABULAR_DOCUMENT_TYPES, export_tabular_document
+from sanad_api.services.tabular_document_io import TABULAR_DOCUMENT_TYPES, export_tabular_document, export_tabular_docx
 from sanad_api.services.text_document_io import TEXT_DOCUMENT_TYPES, export_text_docx
 
 GOTENBERG_URL = os.environ.get("SANAD_GOTENBERG_URL", "http://gotenberg:3000")
@@ -49,6 +49,8 @@ def export_document_file(db: Session, document: Document, output_format: str) ->
         elif output_format == "docx":
             if document.file_type == "docx":
                 export_docx(Path(document.original_file_uri), translations_by_location, output_path)
+            elif document.file_type in TABULAR_DOCUMENT_TYPES:
+                export_tabular_docx(Path(document.original_file_uri), translations_by_location, output_path, document.file_type)
             else:
                 export_text_docx([text for _, text in translations_by_location], output_path)
         else:
@@ -97,6 +99,9 @@ def _export_via_gotenberg(
         if document.file_type == "docx":
             # Preserve original DOCX layout for the intermediate file
             export_docx(Path(document.original_file_uri), translations_by_location, tmp_docx_path)
+        elif document.file_type in TABULAR_DOCUMENT_TYPES:
+            # Preserve TSV/CSV table layout in the intermediate DOCX
+            export_tabular_docx(Path(document.original_file_uri), translations_by_location, tmp_docx_path, document.file_type)
         else:
             # Generate a clean text DOCX for any other source type
             export_text_docx([text for _, text in translations_by_location], tmp_docx_path)

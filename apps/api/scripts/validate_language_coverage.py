@@ -8,7 +8,6 @@ from docx import Document
 
 from sanad_api.services.docx_io import parse_docx
 from sanad_api.services.demo_content import demo_text
-from sanad_api.services.normalization import normalize_text
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -138,7 +137,6 @@ def _process_document(client, fixture: Path, *, source_lang: str, target_lang: s
         "export_path": str(export_path),
         "has_devanagari": _has_devanagari(exported_text),
         "declares_devanagari_font": _docx_declares_font(export_path, DEVANAGARI_FONT),
-        "exported_text": exported_text,
         "ordered_text_preview": ordered_text[:6],
         "exported_text_preview": exported_text[:10],
     }
@@ -171,11 +169,8 @@ def _assert_language_coverage(results: dict[str, dict]) -> None:
         assert result["doc1"]["export_exists"], name
         assert result["doc2"]["export_exists"], name
         assert result["doc2"]["memory_applied"] > 0, name
-        expected_title = normalize_text(result["expected_title"])
-        doc1_lines = {normalize_text(line) for line in result["doc1"]["exported_text"]}
-        doc2_lines = {normalize_text(line) for line in result["doc2"]["exported_text"]}
-        assert expected_title in doc1_lines, name
-        assert expected_title in doc2_lines, name
+        assert result["expected_title"] in result["doc1"]["exported_text_preview"], name
+        assert result["expected_title"] in result["doc2"]["exported_text_preview"], name
         if result["target_lang"] in {"ne", "tmg"}:
             assert result["doc1"]["has_devanagari"], name
             assert result["doc2"]["has_devanagari"], name

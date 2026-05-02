@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, Download, FileText, Languages, RotateCw, ShieldCheck, Upload, Moon, Sun, Layers, Clock, Brain, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Check, Download, FileText, Languages, RotateCw, ShieldCheck, Upload, Moon, Sun, Layers, Clock, Brain, CheckCircle2, Info } from "lucide-react";
 
 import {
   approveSegment,
@@ -14,6 +14,7 @@ import {
   getSegments,
   patchTranslation,
   processDocument,
+  propagateApproval,
   resetDemoState,
   uploadDocument,
   type Segment,
@@ -30,16 +31,17 @@ import {
   type LanguagePathReadiness
 } from "./lib/languageCoverage";
 import { useSanadStore } from "./lib/store";
-import { Badge, Button, Input, LiveStatusIndicator, MiniProgressBar, ProcessingPipeline, SecondaryButton, Select, Textarea, ExportDropdown } from "./components/ui";
+import { Badge, Button, DangerousButton, Input, LiveStatusIndicator, MiniProgressBar, ProcessingPipeline, SecondaryButton, Select, Textarea, ExportDropdown } from "./components/ui";
 import { AnalyticsDashboard, DocumentHistorySidebar, GlossaryPanel, MemoryBrowserPanel } from "./components/features";
 
 export default function App() {
   const queryClient = useQueryClient();
   const { documentId, setDocumentId } = useSanadStore();
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ title: string; detail: string } | null>(null);
+  const [notice, setNotice] = useState<{ title: string; detail: string; action?: { label: string; onClick: () => void } } | null>(null);
   const [sessionResetKey, setSessionResetKey] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("sanad_theme") === "dark");
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -88,13 +90,15 @@ export default function App() {
   const documentQuery = useQuery({
     queryKey: ["document", documentId],
     queryFn: () => getDocument(documentId!),
-    enabled: Boolean(documentId)
+    enabled: Boolean(documentId),
+    refetchInterval: 1_500
   });
 
   const segmentsQuery = useQuery({
     queryKey: ["segments", documentId],
     queryFn: () => getSegments(documentId!),
-    enabled: Boolean(documentId)
+    enabled: Boolean(documentId),
+    refetchInterval: documentQuery.data?.status === "processing" ? 1_500 : false
   });
 
   const invalidateDocument = async (targetDocumentId?: string | null) => {
@@ -170,14 +174,8 @@ export default function App() {
       if (!(event.altKey && event.shiftKey && event.code === "KeyR")) return;
 
       event.preventDefault();
-      // Defer to avoid keyup events auto-dismissing the confirm dialog
-      window.setTimeout(() => {
-        const confirmed = window.confirm(
-          "Reset local SANAD demo state? This clears the local database, storage, and current review session, then regenerates demo fixtures."
-        );
-        if (!confirmed) return;
-        resetDemoMutation.mutate();
-      }, 10);
+      event.stopPropagation();
+      setShowResetConfirm(true);
     };
 
     window.addEventListener("keydown", handleShortcut);
@@ -189,8 +187,44 @@ export default function App() {
       {/* Gradient accent bar */}
       <div className="sanad-header-accent" />
 
-      <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-        <header className="sanad-animate-in flex flex-col gap-4 border-b border-[var(--border-medium)]/60 pb-5 md:flex-row md:items-end md:justify-between">
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="w-full max-w-md p-[1px] rounded-3xl bg-gradient-to-b from-white/20 to-transparent sanad-animate-in slide-in-from-bottom-8">
+            <div className="sanad-glass-modal p-8 rounded-[23px] text-center">
+              <div className="mx-auto w-20 h-20 bg-[var(--sanad-red-50)] dark:bg-red-500/10 rounded-3xl flex items-center justify-center mb-6 shadow-lg border border-[var(--sanad-red-100)] dark:border-red-500/20">
+                <AlertTriangle className="text-[var(--sanad-red-600)] dark:text-red-500 w-10 h-10" />
+              </div>
+              
+              <h2 className="text-[26px] font-extrabold tracking-tight text-[var(--text-primary)]">
+                Reset Demo State?
+              </h2>
+              
+              <p className="mt-4 text-[15px] font-medium leading-relaxed text-[var(--text-secondary)] px-2">
+                This will wipe the local database, clear your current session, and regenerate all demo fixtures. This action <span className="text-[var(--sanad-red-600)] dark:text-red-400 font-bold underline decoration-2 underline-offset-4">cannot be undone</span>.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-3 mt-9">
+                <Button 
+                  className="flex-1 h-12 text-[15px] shadow-lg" 
+                  onClick={() => setShowResetConfirm(false)}
+                >
+                  Keep Everything
+                </Button>
+                <DangerousButton 
+                  className="flex-1 h-12 text-[15px] shadow-xl"
+                  onClick={() => resetDemoMutation.mutate()}
+                  loading={resetDemoMutation.isPending}
+                >
+                  Reset System
+                </DangerousButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+        <header className={`sanad-animate-in flex flex-col gap-4 border-b border-[var(--border-medium)]/60 pb-5 md:flex-row md:items-end md:justify-between transition-all duration-300 ${!(segmentsQuery.data && segmentsQuery.data.length > 0) ? 'max-w-4xl mx-auto w-full' : ''}`}>
           <div className="max-w-3xl">
             <div className="flex items-center gap-3">
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#2d8a5e]">SPAN</p>
@@ -244,17 +278,32 @@ export default function App() {
               onError={setError}
             />
 
-            <ProcessingPipeline active={processMutation.isPending} documentId={documentId} />
+            <ProcessingPipeline 
+              active={processMutation.isPending || documentQuery.data?.status === "uploaded" || documentQuery.data?.status === "processing"} 
+              documentId={documentId} 
+              onComplete={() => invalidateDocument(documentId)}
+            />
 
         {notice ? (
-          <div className="pointer-events-none fixed top-4 right-4 z-50 max-w-[340px] animate-[sanad-slide-down_0.3s_ease-out] rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-white dark:bg-emerald-500/10 px-4 py-3 shadow-lg dark:shadow-[0_4px_12px_rgba(0,0,0,0.6)] backdrop-blur-sm">
-            <div className="flex items-center gap-2.5">
-              <div className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-500/20 p-1 text-emerald-600 dark:text-emerald-400">
+          <div className="fixed top-4 right-4 z-50 max-w-[360px] animate-[sanad-slide-down_0.3s_ease-out] rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-white dark:bg-emerald-500/10 px-4 py-3 shadow-lg dark:shadow-[0_4px_12px_rgba(0,0,0,0.6)] backdrop-blur-sm">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-500/20 p-1 text-emerald-600 dark:text-emerald-400">
                 <Check size={14} />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-semibold leading-5 text-[var(--text-primary)]">{notice.title}</p>
                 <p className="text-[12px] leading-4 text-[var(--text-secondary)]">{notice.detail}</p>
+                {notice.action && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      notice.action?.onClick();
+                    }}
+                    className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:underline"
+                  >
+                    {notice.action.label}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -355,6 +404,7 @@ export default function App() {
           loading={segmentsQuery.isFetching}
           onError={setError}
           afterChange={invalidateDocument}
+          setNotice={setNotice}
         />
         </div>
         </div>
@@ -415,7 +465,7 @@ function UploadPanel({
         </div>
       </div>
       <form
-        className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(180px,0.8fr)_minmax(180px,0.8fr)]"
+        className="grid gap-4 md:grid-cols-[minmax(0,1.6fr)_minmax(180px,0.8fr)_minmax(180px,0.8fr)]"
         onSubmit={(event) => {
           event.preventDefault();
           onError(null);
@@ -616,12 +666,14 @@ function ReviewList({
   segments,
   loading,
   onError,
-  afterChange
+  afterChange,
+  setNotice
 }: {
   segments: Segment[];
   loading: boolean;
   onError: (message: string | null) => void;
   afterChange: () => Promise<void>;
+  setNotice: (notice: { title: string; detail: string; action?: { label: string; onClick: () => void } } | null) => void;
 }) {
   const [filter, setFilter] = useState<"all" | "flagged" | "needs_approval" | "memory" | "approved">("all");
   const [search, setSearch] = useState("");
@@ -728,13 +780,13 @@ function ReviewList({
           />
         </div>
       </div>
-      <div className="hidden lg:grid lg:grid-cols-[minmax(0,0.92fr)_minmax(380px,1fr)_152px] lg:gap-5 lg:px-5 mt-2">
+      <div className="hidden lg:grid lg:grid-cols-[minmax(0,0.85fr)_minmax(440px,1.15fr)_152px] lg:gap-5 lg:px-5 mt-2">
         <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">Source</span>
         <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">Working translation</span>
         <span className="text-right text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">Actions</span>
       </div>
       {filteredSegments.map((segment) => (
-        <SegmentRow key={segment.id} segment={segment} onError={onError} afterChange={afterChange} />
+        <SegmentRow key={segment.id} segment={segment} onError={onError} afterChange={afterChange} setNotice={setNotice} segments={segments} />
       ))}
       {filteredSegments.length === 0 && (
         <div className="p-8 text-center text-sm text-[var(--text-tertiary)] border border-dashed border-[var(--border-medium)] rounded-lg">
@@ -791,12 +843,17 @@ function FilterChip({
 function SegmentRow({
   segment,
   onError,
-  afterChange
+  afterChange,
+  setNotice,
+  segments
 }: {
   segment: Segment;
   onError: (message: string | null) => void;
   afterChange: () => Promise<void>;
+  setNotice: (notice: { title: string; detail: string; action?: { label: string; onClick: () => void } } | null) => void;
+  segments: Segment[];
 }) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState(segment.translation?.approved_text ?? segment.translation?.candidate_text ?? "");
   useEffect(() => {
     setText(segment.translation?.approved_text ?? segment.translation?.candidate_text ?? "");
@@ -807,10 +864,49 @@ function SegmentRow({
     onSuccess: () => afterChange(),
     onError: (err) => onError((err as Error).message)
   });
+  const propagateMutation = useMutation({
+    mutationFn: () => propagateApproval(segment.id, text),
+    onMutate: () => onError(null),
+    onSuccess: (data: { segment: Segment; propagated_count: number }) => {
+      afterChange();
+      setNotice({
+        title: "Global update complete",
+        detail: `Synchronized ${data.propagated_count} identical segments across the document.`
+      });
+      setTimeout(() => setNotice(null), 4000);
+    },
+    onError: (err) => onError((err as Error).message)
+  });
+
   const approveMutation = useMutation({
     mutationFn: () => approveSegment(segment.id, text),
     onMutate: () => onError(null),
-    onSuccess: () => afterChange(),
+    onSuccess: () => {
+      afterChange();
+      
+      const duplicates = segments.filter(s => 
+        s.id !== segment.id && 
+        s.source_text === segment.source_text && 
+        s.status !== 'approved'
+      );
+
+      if (duplicates.length > 0) {
+        setNotice({
+          title: "Translation approved",
+          detail: `Found ${duplicates.length} other identical segments in this document.`,
+          action: {
+            label: `Apply to all ${duplicates.length} matches`,
+            onClick: () => propagateMutation.mutate()
+          }
+        });
+      } else {
+        setNotice({
+          title: "Translation approved",
+          detail: "Saved to memory and verified."
+        });
+        setTimeout(() => setNotice(null), 4000);
+      }
+    },
     onError: (err) => onError((err as Error).message)
   });
 
@@ -825,40 +921,66 @@ function SegmentRow({
   const canSave = Boolean(segment.translation && text.trim() && isDirty && !saveMutation.isPending);
   const canApprove = Boolean(segment.translation && text.trim() && (!isApproved || isDirty));
   const isCompactRow = Math.max(segment.source_text.length, text.length) < 44 && !segment.source_text.includes("\n") && !text.includes("\n");
-  const rowAccentClass = riskReasons.length
-    ? "border-l-[3px] border-l-amber-400 dark:border-l-amber-500 border-amber-200/90 dark:border-amber-500/30 bg-amber-50/40 dark:bg-amber-500/10"
-    : hasMemoryHit
-      ? "border-l-[3px] border-l-sky-400 dark:border-l-sky-500 border-sky-200/90 dark:border-sky-500/30 bg-sky-50/30 dark:bg-sky-500/10"
-      : isApproved
-        ? "border-l-[3px] border-l-emerald-400 dark:border-l-emerald-500 border-emerald-200/90 dark:border-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-500/10"
-        : "border-l-[3px] border-l-[var(--border-medium)] border-[var(--border-light)] bg-[var(--surface-card)]";
+  const isHighRisk = riskReasons.some((r) => r.severity === "high");
+  const isRepaired = segment.translation?.is_repaired;
+  
+  const rowAccentClass = isHighRisk
+    ? "border-l-[3px] border-l-red-400 dark:border-l-red-500 border-red-200/90 dark:border-red-500/30 bg-red-50/40 dark:bg-red-500/10"
+    : isRepaired
+      ? "border-l-[3px] border-l-indigo-400 dark:border-l-indigo-500 border-indigo-200/90 dark:border-indigo-500/30 bg-indigo-50/20 dark:bg-indigo-500/10"
+      : riskReasons.length
+        ? "border-l-[3px] border-l-amber-400 dark:border-l-amber-500 border-amber-200/90 dark:border-amber-500/30 bg-amber-50/40 dark:bg-amber-500/10"
+        : isApproved
+          ? "border-l-[3px] border-l-emerald-400 dark:border-l-emerald-500 border-emerald-200/90 dark:border-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-500/10"
+          : hasMemoryHit
+            ? "border-l-[3px] border-l-sky-400 dark:border-l-sky-500 border-sky-200/90 dark:border-sky-500/30 bg-sky-50/30 dark:bg-sky-500/10"
+            : "border-l-[3px] border-l-[var(--border-medium)] border-[var(--border-light)] bg-white dark:bg-[#0a0a0a]";
 
   return (
-    <article className={`grid gap-4 rounded-md border p-4 shadow-[0_1px_2px_rgba(31,36,31,0.05)] lg:grid-cols-[minmax(0,0.92fr)_minmax(380px,1fr)_152px] ${rowAccentClass}`}>
+    <article className={`grid gap-4 rounded-md border p-4 shadow-[0_1px_2px_rgba(31,36,31,0.05)] lg:grid-cols-[minmax(0,0.85fr)_minmax(440px,1.15fr)_152px] ${rowAccentClass}`}>
       <div className="min-w-0 lg:col-span-3">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <Badge tone="neutral">#{segment.sequence}</Badge>
           <Badge>{segmentTypeLabel(segment.segment_type)}</Badge>
-          {riskReasons.length ? <Badge tone="risk">Flagged for review</Badge> : null}
+          {isHighRisk ? (
+            <Badge tone="high">High risk</Badge>
+          ) : isRepaired ? (
+            <Badge tone="repaired">✨ Repaired</Badge>
+          ) : riskReasons.length ? (
+            <Badge tone="risk">Review needed</Badge>
+          ) : isApproved ? (
+            <Badge tone="success">Approved</Badge>
+          ) : (
+            <Badge tone="success">Verified</Badge>
+          )}
           {hasMemoryHit ? <Badge tone="memory">Memory hit</Badge> : null}
-          {isApproved ? <Badge tone="approved">Approved</Badge> : null}
-          {hasGlossaryHit ? <Badge tone="glossary">Glossary match</Badge> : null}
+          {hasGlossaryHit ? (
+            riskReasons.some(r => r.code === "glossary_miss") ? (
+              <Badge tone="high">Glossary missed</Badge>
+            ) : (
+              <Badge tone="glossary">Glossary applied</Badge>
+            )
+          ) : null}
         </div>
         {primaryRiskReason ? (
-          <div className="mb-1 flex items-start gap-2 rounded-md border border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 px-3 py-2 text-sm leading-5 text-amber-950 dark:text-amber-300">
-            <AlertTriangle className="mt-0.5 shrink-0" size={16} />
+          <div className={`mb-1 flex items-start gap-2 rounded-md border px-3 py-2 text-sm leading-5 ${
+            primaryRiskReason.code === "self_repaired" 
+              ? "border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/80 dark:bg-indigo-500/10 text-indigo-950 dark:text-indigo-300"
+              : "border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 text-amber-950 dark:text-amber-300"
+          }`}>
+            {isRepaired ? <Info className="mt-0.5 shrink-0" size={16} /> : <AlertTriangle className="mt-0.5 shrink-0" size={16} />}
             <div className="min-w-0">
-              <p className="font-semibold">{isApproved ? "Approved after review" : "Review before approval"}</p>
-              <p className="text-amber-900/90 dark:text-amber-400/90">{primaryRiskReason.detail ?? primaryRiskReason.label}</p>
+              <p className="font-semibold">{isRepaired ? "✨ Auto-repaired successfully" : (isApproved ? "Approved after review" : "Review before approval")}</p>
+              <p className={primaryRiskReason.code === "self_repaired" ? "text-indigo-900/90 dark:text-indigo-400/90" : "text-amber-900/90 dark:text-amber-400/90"}>{primaryRiskReason.detail ?? primaryRiskReason.label}</p>
               {secondaryRiskLabels.length ? (
-                <p className="mt-1 text-xs font-medium leading-5 text-amber-900/80 dark:text-amber-400/70">
+                <p className={`mt-1 text-xs font-medium leading-5 ${primaryRiskReason.code === "self_repaired" ? "text-indigo-900/80 dark:text-indigo-400/70" : "text-amber-900/80 dark:text-amber-400/70"}`}>
                   Also checked: {secondaryRiskLabels.join(", ")}
                 </p>
               ) : null}
-              <p className="mt-1 text-xs font-medium leading-5 text-amber-900/80 dark:text-amber-400/70">
+              <p className={`mt-1 text-xs font-medium leading-5 ${primaryRiskReason.code === "self_repaired" ? "text-indigo-900/80 dark:text-indigo-400/70" : "text-amber-900/80 dark:text-amber-400/70"}`}>
                 {isApproved
                   ? "This difference stays visible in the review record."
-                  : "If the change is intentional, approve the segment after checking it."}
+                  : primaryRiskReason.code === "self_repaired" ? "SANAD improved this translation based on internal safety checks." : "If the change is intentional, approve the segment after checking it."}
               </p>
             </div>
           </div>
@@ -868,7 +990,7 @@ function SegmentRow({
         <div className="mb-3">
           <p className="text-sm font-semibold text-[var(--text-primary)]">Source text</p>
         </div>
-        <p className="whitespace-pre-wrap text-[15px] leading-6 text-[var(--text-primary)]">{segment.source_text}</p>
+        <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[15px] leading-6 text-[var(--text-primary)]">{segment.source_text}</p>
         {segment.protected_entities.length ? (
           <div className="mt-3">
             <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Protected spans</p>
@@ -885,12 +1007,47 @@ function SegmentRow({
       <div className="min-w-0">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-[var(--text-primary)]">
-              {isApproved ? "Approved translation" : "Working translation"}
-            </p>
-            <p className="text-xs font-medium leading-5 text-[var(--text-tertiary)]">
-              {translationSourceLabel(segment.translation?.source_type, segment.translation?.provider_name)}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">
+                {isApproved ? "Approved translation" : "Working translation"}
+              </p>
+              {segment.translation?.raw_candidate_text && segment.translation.raw_candidate_text !== text && (
+                <button 
+                  onClick={() => {
+                    const targetText = segment.translation?.raw_candidate_text ?? segment.translation?.candidate_text ?? "";
+                    
+                    if (textareaRef.current) {
+                      textareaRef.current.focus();
+                      textareaRef.current.select();
+                      // document.execCommand is deprecated but it's the ONLY way to preserve native undo stack in most browsers
+                      try {
+                        document.execCommand("insertText", false, targetText);
+                      } catch (e) {
+                        // Fallback to state if execCommand fails
+                        setText(targetText);
+                      }
+                    } else {
+                      setText(targetText);
+                    }
+                    
+                    setNotice({
+                      title: "Restored Raw API",
+                      detail: "Use Ctrl+Z (Cmd+Z) to undo and go back."
+                    });
+                    setTimeout(() => setNotice(null), 4000);
+                  }}
+                  className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm active:scale-95 ml-3"
+                  title={`Restore original: ${segment.translation?.raw_candidate_text ?? "Raw API output"}`}
+                >
+                  <RotateCw size={12} className="text-indigo-600 dark:text-indigo-400" /> Restore Raw API
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2">
+              <p className="text-xs font-medium leading-5 text-[var(--text-tertiary)]">
+                {translationSourceLabel(segment.translation?.source_type, segment.translation?.provider_name)}
+              </p>
+            </div>
             {hasMemoryHit && segment.translation?.memory_provenance ? (
               <p className="mt-1 text-xs font-medium leading-5 text-[var(--text-tertiary)]">
                 {memoryProvenanceLabel(segment.translation.memory_provenance)}
@@ -912,6 +1069,7 @@ function SegmentRow({
           ) : null}
         </div>
         <Textarea
+          ref={textareaRef}
           className={isCompactRow ? "min-h-[84px]" : "min-h-[108px]"}
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -1070,6 +1228,7 @@ function entityKindLabel(kind: string) {
 
 function translationSourceLabel(sourceType?: string, providerName?: string) {
   if (sourceType === "memory") return "From scoped translation memory";
+  if (sourceType === "preserved") return "Preserved exactly";
   if (sourceType === "provider") {
     if (providerName === "official_api") return "From official TMT API (live)";
     if (providerName === "tmt_official") return "From official TMT API (live)";

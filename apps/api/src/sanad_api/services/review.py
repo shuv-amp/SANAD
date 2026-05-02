@@ -49,6 +49,33 @@ def approve_segment(db: Session, segment_id: str, *, text: str | None, actor: st
     return segment
 
 
+def approve_segment_globally(db: Session, segment_id: str, *, text: str | None, actor: str) -> tuple[Segment, int]:
+    """Approve a segment and propagate the same translation to all identical unapproved segments in the document."""
+    # 1. Approve the target segment
+    main_segment = approve_segment(db, segment_id, text=text, actor=actor)
+    source_text = main_segment.source_text
+    document_id = main_segment.document_id
+    approved_text = main_segment.translation.approved_text
+
+    # 2. Find identical unapproved segments in the same document
+    identical_segments = db.scalars(
+        select(Segment).where(
+            Segment.document_id == document_id,
+            Segment.source_text == source_text,
+            Segment.id != segment_id,
+            Segment.status != "approved"
+        )
+    ).all()
+
+    count = 0
+    for other in identical_segments:
+        # We use the same text for all
+        approve_segment(db, other.id, text=approved_text, actor=actor)
+        count += 1
+
+    return main_segment, count
+
+
 def update_candidate_translation(db: Session, segment_id: str, *, candidate_text: str) -> Segment:
     segment = db.scalar(select(Segment).where(Segment.id == segment_id))
     if not segment or not segment.translation:

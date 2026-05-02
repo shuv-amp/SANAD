@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -8,47 +9,32 @@ from sanad_api.services.normalization import contains_devanagari, display_normal
 
 PDF_DOCUMENT_TYPES = {"pdf"}
 DEVANAGARI_FONT_PATH = Path("/System/Library/Fonts/Supplemental/Devanagari Sangam MN.ttc")
+LARGE_PDF_LINE_THRESHOLD = 180
+LARGE_PDF_REGION_MAX_CHARS = 2800
+LARGE_PDF_REGION_MAX_LINES = 24
+LARGE_PDF_REGION_VERTICAL_GAP = 50.0
+
+
+@dataclass(frozen=True)
+class _PdfLine:
+    page_index: int
+    block_index: int
+    line_index: int
+    text: str
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    font_size: float
 
 
 def parse_pdf_document(path: Path) -> list[ParsedSegment]:
     document = fitz.open(path)
     try:
-        segments: list[ParsedSegment] = []
-        sequence = 0
-        for page_index, page in enumerate(document):
-            page_dict = page.get_text("dict", sort=True)
-            for block_index, block in enumerate(page_dict.get("blocks", [])):
-                if block.get("type") != 0:
-                    continue
-                for line_index, line in enumerate(block.get("lines", [])):
-                    spans = line.get("spans", [])
-                    line_text = display_normalize("".join(span.get("text", "") for span in spans))
-                    if not line_text:
-                        continue
-                    x0, y0, x1, y1 = line.get("bbox", (0, 0, 0, 0))
-                    if _looks_like_footer_page_number(page, line_text, x0, y0, x1, y1):
-                        continue
-                    sequence += 1
-                    font_size = max((float(span.get("size", 11.0)) for span in spans), default=11.0)
-                    segments.append(
-                        ParsedSegment(
-                            sequence=sequence,
-                            segment_type="pdf_line",
-                            source_text=line_text,
-                            location_json={
-                                "kind": "pdf_line",
-                                "page_index": page_index,
-                                "block_index": block_index,
-                                "line_index": line_index,
-                                "x0": x0,
-                                "y0": y0,
-                                "x1": x1,
-                                "y1": y1,
-                                "font_size": round(font_size, 2),
-                            },
-                        )
-                    )
-        return segments
+        lines = _collect_pdf_lines(document)
+        if len(lines) <= LARGE_PDF_LINE_THRESHOLD:
+            return _line_segments(lines)
+        return _region_segments(lines)
     finally:
         document.close()
 
@@ -133,6 +119,157 @@ def _font_size_steps(base_font_size: float) -> list[float]:
         steps.append(round(size, 2))
         size -= 0.5
     return steps
+
+
+def _collect_pdf_lines(document: fitz.Document) -> list[_PdfLine]:
+    lines: list[_PdfLine] = []
+    for page_index, page in enumerate(document):
+        page_dict = page.get_text("dict", sort=True)
+        for block_index, block in enumerate(page_dict.get("blocks", [])):
+            if block.get("type") != 0:
+                continue
+            for line_index, line in enumerate(block.get("lines", [])):
+                spans = line.get("spans", [])
+                line_text = display_normalize("".join(span.get("text", "") for span in spans))
+                if not line_text:
+                    continue
+                x0, y0, x1, y1 = line.get("bbox", (0, 0, 0, 0))
+                if _looks_like_footer_page_number(page, line_text, x0, y0, x1, y1):
+                    continue
+                font_size = max((float(span.get("size", 11.0)) for span in spans), default=11.0)
+                lines.append(
+                    _PdfLine(
+                        page_index=page_index,
+                        block_index=block_index,
+                        line_index=line_index,
+                        text=line_text,
+                        x0=float(x0),
+                        y0=float(y0),
+                        x1=float(x1),
+                        y1=float(y1),
+                        font_size=round(font_size, 2),
+                    )
+                )
+    return lines
+
+
+def _line_segments(lines: list[_PdfLine]) -> list[ParsedSegment]:
+    return [_line_segment(sequence, line) for sequence, line in enumerate(lines, start=1)]
+
+
+def _region_segments(lines: list[_PdfLine]) -> list[ParsedSegment]:
+    segments: list[ParsedSegment] = []
+    current: list[_PdfLine] = []
+
+    def flush_region() -> None:
+        nonlocal current
+        if not current:
+            return
+        sequence = len(segments) + 1
+        if len(current) == 1:
+            segments.append(_line_segment(sequence, current[0]))
+        else:
+            segments.append(_region_segment(sequence, current))
+        current = []
+
+    for line in lines:
+        if _looks_structural(line.text):
+            flush_region()
+            segments.append(_line_segment(len(segments) + 1, line))
+            continue
+        if current and _starts_new_region(current, line):
+            flush_region()
+        current.append(line)
+
+    flush_region()
+    return segments
+
+
+def _line_segment(sequence: int, line: _PdfLine) -> ParsedSegment:
+    return ParsedSegment(
+        sequence=sequence,
+        segment_type="pdf_line",
+        source_text=line.text,
+        location_json={
+            "kind": "pdf_line",
+            "page_index": line.page_index,
+            "block_index": line.block_index,
+            "line_index": line.line_index,
+            "x0": line.x0,
+            "y0": line.y0,
+            "x1": line.x1,
+            "y1": line.y1,
+            "font_size": line.font_size,
+        },
+    )
+
+
+def _region_segment(sequence: int, lines: list[_PdfLine]) -> ParsedSegment:
+    x0 = min(line.x0 for line in lines)
+    y0 = min(line.y0 for line in lines)
+    x1 = max(line.x1 for line in lines)
+    y1 = max(line.y1 for line in lines)
+    font_size = sum(line.font_size for line in lines) / len(lines)
+    return ParsedSegment(
+        sequence=sequence,
+        segment_type="pdf_text_region",
+        source_text=_join_region_text(lines),
+        location_json={
+            "kind": "pdf_text_region",
+            "page_index": lines[0].page_index,
+            "block_index": lines[0].block_index,
+            "line_index": lines[0].line_index,
+            "line_count": len(lines),
+            "x0": x0,
+            "y0": y0,
+            "x1": x1,
+            "y1": y1,
+            "font_size": round(font_size, 2),
+        },
+    )
+
+
+def _starts_new_region(current: list[_PdfLine], line: _PdfLine) -> bool:
+    previous = current[-1]
+    if previous.page_index != line.page_index:
+        return True
+    if len(current) >= LARGE_PDF_REGION_MAX_LINES:
+        return True
+    current_chars = sum(len(item.text) for item in current)
+    if current_chars + len(line.text) > LARGE_PDF_REGION_MAX_CHARS:
+        return True
+    vertical_gap = line.y0 - previous.y1
+    if vertical_gap > LARGE_PDF_REGION_VERTICAL_GAP:
+        return True
+    if abs(line.x0 - previous.x0) > 90 and vertical_gap > previous.font_size * 0.7:
+        return True
+    return False
+
+
+def _join_region_text(lines: list[_PdfLine]) -> str:
+    parts: list[str] = []
+    for line in lines:
+        text = line.text.strip()
+        if not text:
+            continue
+        if parts and parts[-1].endswith("-") and text[:1].islower():
+            parts[-1] = parts[-1][:-1] + text
+        else:
+            parts.append(text)
+    return " ".join(parts)
+
+
+def _looks_structural(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return True
+    if stripped.startswith("#") and stripped[1:].isdigit():
+        return True
+    if stripped.isdigit():
+        return True
+    if all(char in ". ·•-–—" for char in stripped) and any(char in stripped for char in ".·•"):
+        return True
+    return False
 
 
 def _looks_like_footer_page_number(

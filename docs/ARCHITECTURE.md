@@ -30,7 +30,7 @@ SANAD supports text-based PDF, DOCX, CSV/TSV, and text formats (TXT/MD/HTML; DOC
 
 If parsing finds no translatable text, the API returns a clear error and the document is marked failed.
 
-## Memory and review
+## Risk, Repair, and Review
 
 Memory is scoped by:
 
@@ -42,13 +42,15 @@ Memory is scoped by:
 
 Memory hits are applied before provider translation. Approved translations write back to memory with provenance (document, segment, review event, actor, approval time).
 
-Risk scoring is rule-based. Risk flags include:
+Risk scoring is deterministic and rule-based. The Risk Engine flags issues such as:
 
-- changed number
-- changed protected entity
-- glossary miss
-- untranslated source token remains
+- changed numbers or dropped digits
+- changed protected entities
+- flipped legal modals or missing currency
+- untranslated source tokens
 - suspicious length deviation
+
+**Self-Healing Pipeline**: If a fixable error is detected (e.g., a missing number or repeated word), SANAD automatically attempts a repair. It re-prompts the translation provider with targeted instructions and only accepts the repaired segment if the new risk score is objectively lower (better) than the original.
 
 ## Providers
 
@@ -60,7 +62,7 @@ await provider.translate_batch(TranslationBatchRequest(...)) -> list[Translation
 
 Current providers:
 
-- `FixtureTranslationProvider`: deterministic demo path.
+- `FixtureTranslationProvider`: deterministic testing path.
 - `MockTranslationProvider`: contract tests only.
 - `OfficialTmtApiProvider`: official `/lang-translate` with Bearer token auth.
 - `LegacyTmtApiProvider`: public `/translate` fallback.

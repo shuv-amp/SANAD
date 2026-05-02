@@ -95,7 +95,7 @@ export function DocumentHistorySidebar({
               <span className="text-xs font-medium text-[var(--text-tertiary)]">
                 {languageCodeLabel(doc.source_lang)} → {languageCodeLabel(doc.target_lang)}
               </span>
-              {doc.status === "processed" && <Badge tone="approved">Ready</Badge>}
+              {doc.status === "processed" && <Badge tone="success">Ready</Badge>}
               {doc.status === "exported" && <Badge tone="neutral">Exported</Badge>}
               {doc.status === "failed" && <Badge tone="risk">Failed</Badge>}
               {["uploaded", "processing"].includes(doc.status) && <Badge tone="status">Processing</Badge>}

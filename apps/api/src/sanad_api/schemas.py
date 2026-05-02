@@ -47,6 +47,7 @@ class DocumentSummary(BaseModel):
 class TranslationRead(BaseModel):
     id: str
     candidate_text: str
+    raw_candidate_text: str | None = None
     approved_text: str | None
     source_type: str
     provider_name: str
@@ -54,7 +55,10 @@ class TranslationRead(BaseModel):
     risk_score: float
     risk_reasons: list[dict] = Field(default_factory=list)
     status: str
+    is_repaired: bool = False
     memory_provenance: dict | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SegmentRead(BaseModel):
@@ -67,6 +71,8 @@ class SegmentRead(BaseModel):
     glossary_hits: list[dict]
     status: str
     translation: TranslationRead | None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TranslationPatch(BaseModel):
@@ -106,6 +112,11 @@ class ApproveRequest(BaseModel):
 
 class ExportRequest(BaseModel):
     format: str = "docx"
+
+
+class GlobalApproveResponse(BaseModel):
+    segment: SegmentRead
+    propagated_count: int
 
 
 class ProviderDebug(BaseModel):

@@ -44,13 +44,15 @@ export type TrustSummary = {
 export type Translation = {
   id: string;
   candidate_text: string;
+  raw_candidate_text: string | null;
   approved_text: string | null;
   source_type: string;
   provider_name: string;
   memory_entry_id: string | null;
   risk_score: number;
-  risk_reasons: Array<{ code: string; label: string; detail: string }>;
+  risk_reasons: Array<{ code: string; label: string; detail: string; severity?: "high" | "medium" | "low" }>;
   status: string;
+  is_repaired: boolean;
   memory_provenance: {
     source_document_filename: string | null;
     scope_label: string;
@@ -121,7 +123,7 @@ export async function deleteDocument(id: string) {
 }
 
 export async function processDocument(documentId: string) {
-  return request<DocumentSummary>(`/documents/${documentId}/process`, { method: "POST" });
+  return request<DocumentSummary>(`/documents/${documentId}/process-async`, { method: "POST" });
 }
 
 export async function getDocument(documentId: string) {
@@ -142,6 +144,14 @@ export async function patchTranslation(segmentId: string, candidateText: string)
 
 export async function approveSegment(segmentId: string, text: string) {
   return request<Segment>(`/segments/${segmentId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, actor: "demo-reviewer" })
+  });
+}
+
+export async function propagateApproval(segmentId: string, text: string) {
+  return request<{ segment: Segment; propagated_count: number }>(`/segments/${segmentId}/approve-globally`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, actor: "demo-reviewer" })

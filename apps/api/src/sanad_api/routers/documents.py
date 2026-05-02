@@ -1,9 +1,12 @@
 import shutil
 import tempfile
+import logging
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+logger = logging.getLogger(__name__)
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -15,6 +18,7 @@ from sanad_api.schemas import (
     DocumentCreateResponse,
     DocumentSummary,
     ExportRequest,
+    GlobalApproveResponse,
     SegmentRead,
     SourceLanguageDetectionRead,
     TranslationPatch,
@@ -25,7 +29,7 @@ from sanad_api.services.feedback_pack import export_feedback_pack
 from sanad_api.services.demo_content import SUPPORTED_DEMO_LANGUAGES
 from sanad_api.services.language_detection import detect_source_language
 from sanad_api.services.processing import document_counts, document_trust_summary, process_document
-from sanad_api.services.review import approve_segment, approve_unflagged, update_candidate_translation
+from sanad_api.services.review import approve_segment, approve_segment_globally, approve_unflagged, update_candidate_translation
 from sanad_api.services.scope import display_scope, normalize_scope
 from sanad_api.services.storage import save_upload
 router = APIRouter(tags=["documents"])
@@ -104,7 +108,7 @@ def upload_document(
     document_id = uuid_str()
     saved_path, checksum = save_upload(document_id, file, extension)
     
-    # Duplicate detection (Moat Feature F12)
+    # Duplicate document detection
     existing_duplicate = db.scalar(
         select(Document).where(
             Document.checksum == checksum,
@@ -151,6 +155,30 @@ async def process(document_id: str, db: Session = Depends(get_db)) -> DocumentSu
         await process_document(db, document)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _document_summary(db, document)
+
+
+@router.post("/documents/{document_id}/process-async", response_model=DocumentSummary)
+def process_async(
+    document_id: str,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> DocumentSummary:
+    document = _get_document(db, document_id)
+    if document.status != "processing":
+        document.status = "processing"
+        document.doc_metadata = {
+            **(document.doc_metadata or {}),
+            "processing": {
+                "total_segments": 0,
+                "local_segments": 0,
+                "provider_segments": 0,
+            },
+        }
+        db.commit()
+        db.refresh(document)
+        background_tasks.add_task(_process_document_background, request.app.state.session_local, document.id)
     return _document_summary(db, document)
 
 
@@ -231,6 +259,16 @@ def approve(segment_id: str, payload: ApproveRequest, db: Session = Depends(get_
     return _segment_read(segment)
 
 
+@router.post("/segments/{segment_id}/approve-globally", response_model=GlobalApproveResponse)
+def approve_globally(segment_id: str, payload: ApproveRequest, db: Session = Depends(get_db)) -> GlobalApproveResponse:
+    try:
+        segment, count = approve_segment_globally(db, segment_id, text=payload.text, actor=payload.actor)
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return GlobalApproveResponse(segment=_segment_read(segment), propagated_count=count)
+
+
 @router.post("/documents/{document_id}/approve-unflagged")
 def approve_unflagged_segments(document_id: str, db: Session = Depends(get_db)) -> dict:
     _get_document(db, document_id)
@@ -285,6 +323,26 @@ def _get_document(db: Session, document_id: str) -> Document:
     return document
 
 
+async def _process_document_background(session_local, document_id: str) -> None:
+    logger.info(f"🔥 Background task started for {document_id}")
+    with session_local() as db:
+        document = db.get(Document, document_id)
+        if not document:
+            return
+        try:
+            await process_document(db, document, progressive=True)
+        except Exception as exc:
+            db.rollback()
+            failed_document = db.get(Document, document_id)
+            if failed_document:
+                failed_document.status = "failed"
+                failed_document.doc_metadata = {
+                    **(failed_document.doc_metadata or {}),
+                    "processing_error": str(exc),
+                }
+                db.commit()
+
+
 def _document_summary(db: Session, document: Document) -> DocumentSummary:
     db.refresh(document)
     return DocumentSummary(
@@ -323,6 +381,7 @@ def _translation_read(translation: Translation) -> TranslationRead:
     return TranslationRead(
         id=translation.id,
         candidate_text=translation.candidate_text,
+        raw_candidate_text=translation.raw_candidate_text,
         approved_text=translation.approved_text,
         source_type=translation.source_type,
         provider_name=translation.provider_name,
@@ -330,6 +389,7 @@ def _translation_read(translation: Translation) -> TranslationRead:
         risk_score=translation.risk_score,
         risk_reasons=translation.risk_reasons_json,
         status=translation.status,
+        is_repaired=translation.is_repaired,
         memory_provenance=_memory_provenance_read(translation.memory_entry) if translation.memory_entry else None,
     )
 
@@ -414,7 +474,7 @@ async def document_progress(document_id: str, db: Session = Depends(get_db)):
     async def event_generator():
         # This is a real-time SSE stream. In a full implementation we'd hook this into the
         # process_document flow using an async queue or Redis pub/sub. 
-        # For the hackathon moat, we will stream real DB status updates until it's processed.
+        # We will stream real DB status updates until document processing is complete.
         
         while True:
             # Refresh document from DB
@@ -431,12 +491,17 @@ async def document_progress(document_id: str, db: Session = Depends(get_db)):
             if document.status == "uploaded":
                 yield f"data: {json.dumps({'status': 'processing', 'step': 'parsing'})}\n\n"
             else:
+                processing_meta = (document.doc_metadata or {}).get("processing") or {}
                 # Get segment counts to calculate real translation progress
                 counts = document_counts(db, document.id)
                 total = counts["segments"]
                 done = counts["approved"] + counts["needs_review"] + counts["memory_applied"]
                 
-                if total == 0:
+                if processing_meta:
+                    meta_total = int(processing_meta.get("total_segments") or 0)
+                    meta_done = int(processing_meta.get("local_segments") or 0)
+                    yield f"data: {json.dumps({'status': 'processing', 'step': 'translating', 'progress': meta_done, 'total': meta_total})}\n\n"
+                elif total == 0:
                     yield f"data: {json.dumps({'status': 'processing', 'step': 'parsing'})}\n\n"
                 elif done < total:
                     yield f"data: {json.dumps({'status': 'processing', 'step': 'translating', 'progress': done, 'total': total})}\n\n"

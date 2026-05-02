@@ -60,13 +60,13 @@ class TranslationProvider(Protocol):
 
 
 # ---------------------------------------------------------------------------
-# Fixture provider (deterministic demo — always works)
+# Fixture provider (deterministic — always works)
 # ---------------------------------------------------------------------------
 
 class FixtureTranslationProvider:
     name = "fixture"
     is_implemented = True
-    notes = "Deterministic multilingual fixture provider for SANAD demo reliability."
+    notes = "Deterministic multilingual fixture provider for SANAD reliability."
 
     async def translate_batch(self, request: TranslationBatchRequest) -> list[TranslationResult]:
         return [
@@ -110,8 +110,6 @@ class MockTranslationProvider:
 _RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 _DEFAULT_RETRY_ATTEMPTS = 3
 _RETRY_BACKOFF_SECONDS = 0.4
-_OFFICIAL_MIN_REQUEST_SPACING_SECONDS = 1.05
-_LEGACY_MIN_REQUEST_SPACING_SECONDS = 0.25
 
 _LANGUAGE_ALIASES_TO_CANONICAL = {
     "english": "English", "en": "English", "eng": "English",
@@ -171,7 +169,7 @@ class OfficialTmtApiProvider:
     name = "tmt_official"
     is_implemented = True
     notes = (
-        "Official Google TMT Hackathon 2026 API adapter. "
+        "Official TMT API adapter. "
         "Uses POST /lang-translate with Bearer token authentication."
     )
 
@@ -183,7 +181,7 @@ class OfficialTmtApiProvider:
         timeout_seconds: float = 20.0,
         batch_size: int = 25,
         rate_limit_delay: float = 0.1,
-        concurrency: int = 5,
+        concurrency: int = 8,
         transport: httpx.AsyncBaseTransport | None = None,
         retry_attempts: int = _DEFAULT_RETRY_ATTEMPTS,
     ) -> None:
@@ -201,9 +199,10 @@ class OfficialTmtApiProvider:
         headers = self._build_headers()
         src_lang = _normalize_lang_for_api(request.source_lang)
         tgt_lang = _normalize_lang_for_api(request.target_lang)
+        print(f"📦 translate_batch received {len(request.segments)} segments for {src_lang} -> {tgt_lang}")
 
         semaphore = asyncio.Semaphore(self.concurrency)
-        pacer = _RequestPacer(max(self.rate_limit_delay, _OFFICIAL_MIN_REQUEST_SPACING_SECONDS))
+        pacer = _RequestPacer(self.rate_limit_delay)
 
         async def _translate_one(segment: TranslationSegmentRequest, *, use_semaphore: bool = True) -> TranslationResult:
             source_text = segment.source_text.strip()
@@ -214,7 +213,9 @@ class OfficialTmtApiProvider:
             async def _run_request() -> TranslationResult:
                 try:
                     await pacer.wait()
+                    print(f"📡 TMT REQ: {src_lang} -> {tgt_lang} | Text: {source_text[:30]}...")
                     response_data = await self._post_with_retries(client, url, headers, payload)
+                    print(f"📥 TMT RESP: {str(response_data)[:200]}...")
                     translated = self._extract_output(response_data)
                     return TranslationResult(
                         segment_id=segment.segment_id,
@@ -222,6 +223,7 @@ class OfficialTmtApiProvider:
                         provider_tier="tmt_official",
                     )
                 except Exception as exc:
+                    print(f"❌ TMT API Error for segment {segment.segment_id}: {exc}")
                     return TranslationResult(
                         segment_id=segment.segment_id,
                         translated_text="",
@@ -238,19 +240,36 @@ class OfficialTmtApiProvider:
             results_by_id: dict[str, TranslationResult] = {}
             failed_segments: list[TranslationSegmentRequest] = []
             for chunk in _segment_chunks(request.segments, self.batch_size):
+                print(f"📡 Sending chunk of {len(chunk)} segments...")
                 chunk_results = await asyncio.gather(*[_translate_one(seg) for seg in chunk])
+                print(f"✅ Chunk finished with {len(chunk_results)} results")
                 for segment, result in zip(chunk, chunk_results, strict=True):
                     results_by_id[result.segment_id] = result
                     if result.error:
                         failed_segments.append(segment)
 
             # A slower second pass recovers transient failures without dropping straight to fallback.
-            for segment in failed_segments:
-                retry_result = await _translate_one(segment, use_semaphore=False)
-                if not retry_result.error:
-                    results_by_id[retry_result.segment_id] = retry_result
+            if failed_segments:
+                print(f"🔄 Retrying {len(failed_segments)} failed segments sequentially...")
+                for segment in failed_segments:
+                    retry_result = await _translate_one(segment, use_semaphore=False)
+                    if not retry_result.error:
+                        results_by_id[retry_result.segment_id] = retry_result
 
-        return [results_by_id[segment.segment_id] for segment in request.segments]
+        print(f"📊 Assembling results for {len(request.segments)} segments...")
+        final_results = []
+        for segment in request.segments:
+            if segment.segment_id not in results_by_id:
+                print(f"⚠️ MISSING segment_id: {segment.segment_id} in results_by_id! Adding placeholder.")
+                final_results.append(TranslationResult(
+                    segment_id=segment.segment_id,
+                    translated_text="[TIMEOUT/FAILED]",
+                    provider_tier="tmt_official",
+                    error="Segment lost during batch processing"
+                ))
+            else:
+                final_results.append(results_by_id[segment.segment_id])
+        return final_results
 
     def _resolve_url(self) -> str:
         endpoint = (self.endpoint or "").strip()
@@ -272,7 +291,7 @@ class OfficialTmtApiProvider:
         if not self.api_key:
             raise ProviderConfigurationError(
                 "SANAD_TMT_API_KEY is required for the official TMT API. "
-                "Get your team token from the hackathon organizers."
+                "Ensure you have a valid authentication token for the primary API."
             )
         return {
             "Content-Type": "application/json",
@@ -284,25 +303,32 @@ class OfficialTmtApiProvider:
     ) -> dict:
         for attempt in range(1, self.retry_attempts + 1):
             try:
+                if attempt > 1:
+                    print(f"🔄 Retrying TMT API (attempt {attempt}/{self.retry_attempts})...")
                 response = await client.post(url, headers=headers, json=payload)
             except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
                 if attempt >= self.retry_attempts:
                     raise ValueError(
                         "Official TMT API request failed after retries (network/timeout)."
                     ) from exc
+                print(f"⚠️ TMT API network error: {exc}. Retrying...")
                 await asyncio.sleep(_RETRY_BACKOFF_SECONDS * attempt)
                 continue
 
             if response.status_code == 429:
-                # Fail fast on rate limits so SmartProvider can instantly cascade to Tier 2
-                raise ValueError("Official TMT API rate limit (60/min) exceeded.")
+                if attempt >= self.retry_attempts:
+                    raise ValueError("Official TMT API rate limit exceeded after retries.")
+                print(f"⏳ TMT API rate limit (429). Waiting...")
+                await self._retry_delay(response, attempt)
+                continue
 
             if response.status_code in _RETRYABLE_STATUS_CODES:
                 if attempt >= self.retry_attempts:
                     raise ValueError(
                         f"Official TMT API temporarily unavailable (status {response.status_code})."
                     )
-                await asyncio.sleep(_RETRY_BACKOFF_SECONDS * attempt)
+                print(f"🔄 TMT API error {response.status_code}. Retrying...")
+                await self._retry_delay(response, attempt)
                 continue
 
             if response.status_code >= 400:
@@ -316,6 +342,16 @@ class OfficialTmtApiProvider:
                 raise ValueError("Official TMT API returned unexpected JSON payload.")
             return data
         raise ValueError("Official TMT API request failed after retries.")
+
+    async def _retry_delay(self, response: httpx.Response, attempt: int) -> None:
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            try:
+                await asyncio.sleep(max(0.0, float(retry_after)))
+                return
+            except ValueError:
+                pass
+        await asyncio.sleep(_RETRY_BACKOFF_SECONDS * attempt)
 
     def _extract_output(self, data: dict) -> str:
         msg_type = data.get("message_type", "")
@@ -361,7 +397,7 @@ class LegacyTmtApiProvider:
         "Used as automatic fallback when the official API is unavailable."
     )
     todos = [
-        "This legacy endpoint may be deprecated after the hackathon.",
+        "This legacy endpoint may be deprecated in future releases.",
     ]
 
     def __init__(
@@ -373,7 +409,7 @@ class LegacyTmtApiProvider:
         timeout_seconds: float = 20.0,
         batch_size: int = 25,
         rate_limit_delay: float = 0.0,
-        concurrency: int = 5,
+        concurrency: int = 8,
         transport: httpx.AsyncBaseTransport | None = None,
         retry_attempts: int = _DEFAULT_RETRY_ATTEMPTS,
     ) -> None:
@@ -394,7 +430,7 @@ class LegacyTmtApiProvider:
         headers = self._build_headers()
 
         semaphore = asyncio.Semaphore(self.concurrency)
-        pacer = _RequestPacer(max(self.rate_limit_delay, _LEGACY_MIN_REQUEST_SPACING_SECONDS))
+        pacer = _RequestPacer(self.rate_limit_delay)
 
         async def _translate_one(segment: TranslationSegmentRequest, *, use_semaphore: bool = True) -> TranslationResult:
             source_text = segment.source_text.strip()
@@ -405,7 +441,9 @@ class LegacyTmtApiProvider:
             async def _run_request() -> TranslationResult:
                 try:
                     await pacer.wait()
+                    print(f"📡 TMT LEGACY REQ: {src_lang} -> {tgt_lang} | Text: {source_text[:30]}...")
                     response_payload = await self._post_with_retries(client, translate_url, headers, payload)
+                    print(f"📥 TMT LEGACY RESP: {str(response_payload)[:200]}...")
                     translated_text = self._extract_translated_text(response_payload)
                     return TranslationResult(
                         segment_id=segment.segment_id,
@@ -485,21 +523,28 @@ class LegacyTmtApiProvider:
     async def _post_with_retries(self, client, url, headers, payload) -> dict:
         for attempt in range(1, self.retry_attempts + 1):
             try:
+                if attempt > 1:
+                    print(f"🔄 Retrying TMT LEGACY API (attempt {attempt}/{self.retry_attempts})...")
                 response = await client.post(url, headers=headers, json=payload)
             except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
                 if attempt >= self.retry_attempts:
                     raise ValueError("Legacy TMT provider request failed after retries (network/timeout).") from exc
+                print(f"⚠️ TMT LEGACY API network error: {exc}. Retrying...")
                 await asyncio.sleep(_RETRY_BACKOFF_SECONDS * attempt)
                 continue
 
             if response.status_code == 429:
-                # Fail fast on rate limits so SmartProvider can instantly cascade to Tier 3 if needed
-                raise ValueError("Legacy TMT provider rate limit exceeded.")
+                if attempt >= self.retry_attempts:
+                    raise ValueError("Legacy TMT provider rate limit exceeded after retries.")
+                print(f"⏳ TMT LEGACY API rate limit (429). Waiting...")
+                await self._retry_delay(response, attempt)
+                continue
 
             if response.status_code in _RETRYABLE_STATUS_CODES:
                 if attempt >= self.retry_attempts:
                     raise ValueError(f"Legacy TMT provider temporarily unavailable (status {response.status_code}).")
-                await asyncio.sleep(_RETRY_BACKOFF_SECONDS * attempt)
+                print(f"🔄 TMT LEGACY API error {response.status_code}. Retrying...")
+                await self._retry_delay(response, attempt)
                 continue
 
             if response.status_code >= 400:
@@ -513,6 +558,16 @@ class LegacyTmtApiProvider:
                 raise ValueError("Legacy TMT provider returned an unexpected JSON payload.")
             return payload_json
         raise ValueError("Legacy TMT provider request failed after retries.")
+
+    async def _retry_delay(self, response: httpx.Response, attempt: int) -> None:
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            try:
+                await asyncio.sleep(max(0.0, float(retry_after)))
+                return
+            except ValueError:
+                pass
+        await asyncio.sleep(_RETRY_BACKOFF_SECONDS * attempt)
 
     def _normalize_error_response(self, response: httpx.Response) -> str:
         status = response.status_code
@@ -710,6 +765,7 @@ def get_provider(name: str) -> TranslationProvider:
             timeout_seconds=settings.tmt_timeout_seconds,
             batch_size=settings.tmt_provider_batch_size,
             rate_limit_delay=settings.tmt_rate_limit_delay,
+            concurrency=settings.tmt_concurrency,
         )
     if provider_name == "tmt_legacy":
         settings = get_settings()
@@ -720,6 +776,7 @@ def get_provider(name: str) -> TranslationProvider:
             timeout_seconds=settings.tmt_timeout_seconds,
             batch_size=settings.tmt_provider_batch_size,
             rate_limit_delay=settings.tmt_rate_limit_delay,
+            concurrency=settings.tmt_concurrency,
         )
     raise ProviderConfigurationError(
         f"Unsupported SANAD_ACTIVE_PROVIDER={name!r}. Valid values are: fixture, mock, tmt_api, tmt_official, tmt_legacy."
@@ -738,6 +795,7 @@ def _build_smart_provider() -> SmartTmtProvider:
             timeout_seconds=settings.tmt_timeout_seconds,
             batch_size=settings.tmt_provider_batch_size,
             rate_limit_delay=settings.tmt_rate_limit_delay,
+            concurrency=settings.tmt_concurrency,
         )
 
     # Build legacy provider if endpoint is configured
@@ -750,6 +808,7 @@ def _build_smart_provider() -> SmartTmtProvider:
             timeout_seconds=settings.tmt_timeout_seconds,
             batch_size=settings.tmt_provider_batch_size,
             rate_limit_delay=settings.tmt_rate_limit_delay,
+            concurrency=settings.tmt_concurrency,
         )
 
     return SmartTmtProvider(

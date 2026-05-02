@@ -609,7 +609,7 @@ def test_smart_provider_falls_back_to_fixture_when_all_apis_fail() -> None:
     smart = SmartTmtProvider(official=official, legacy=legacy, enable_fallback=True)
     results = asyncio.run(smart.translate_batch(_request()))
 
-    # Fixture should produce known translations for demo text
+    # Fixture should produce known translations for test text
     assert len(results) == 2
     assert results[0].provider_tier == "fixture_fallback"
     assert smart.last_provider_used == "fixture_fallback"

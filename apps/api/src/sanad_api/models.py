@@ -70,6 +70,7 @@ class Translation(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     segment_id: Mapped[str] = mapped_column(ForeignKey("segments.id", ondelete="CASCADE"), unique=True, nullable=False)
     candidate_text: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_candidate_text: Mapped[str | None] = mapped_column(Text)
     approved_text: Mapped[str | None] = mapped_column(Text)
     source_type: Mapped[str] = mapped_column(String(32), nullable=False)
     provider_name: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -77,6 +78,7 @@ class Translation(Base, TimestampMixin):
     risk_score: Mapped[float] = mapped_column(Float, default=0, nullable=False)
     risk_reasons_json: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="candidate", nullable=False)
+    is_repaired: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     segment: Mapped[Segment] = relationship(back_populates="translation")
     memory_entry: Mapped["MemoryEntry | None"] = relationship()

@@ -17,9 +17,16 @@
   --sanad-green-800: #0f3b25;
   --sanad-green-900: #0a2a1b;
 
+  --sanad-red-50: #fef2f2;
+  --sanad-red-100: #fee2e2;
+  --sanad-red-500: #ef4444;
+  --sanad-red-600: #dc2626;
+  --sanad-red-700: #b91c1c;
+
   /* Accent gradient */
   --gradient-brand: linear-gradient(135deg, #1a5c3a 0%, #2d8a5e 50%, #34a065 100%);
   --gradient-brand-hover: linear-gradient(135deg, #164e32 0%, #1a5c3a 50%, #2d8a5e 100%);
+  --gradient-danger: linear-gradient(135deg, #b91c1c 0%, #dc2626 50%, #ef4444 100%);
   --gradient-header: linear-gradient(135deg, #0f3b25 0%, #1a5c3a 40%, #2d8a5e 100%);
   --gradient-subtle: linear-gradient(180deg, #fafaf8 0%, #f3f2ed 100%);
 
@@ -245,4 +252,23 @@ input[type="file"]::file-selector-button {
 .sanad-header-accent {
   height: 3px;
   background: var(--gradient-brand);
+}
+
+/* Glass Modal */
+.sanad-glass-modal {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 
+    0 8px 32px 0 rgba(15, 23, 18, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+:root[data-theme="dark"] .sanad-glass-modal {
+  background: rgba(30, 30, 30, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }

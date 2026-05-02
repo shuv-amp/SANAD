@@ -100,6 +100,27 @@ class MemoryEntryRead(BaseModel):
     source_document_filename: str | None
 
 
+class QuickDetectRequest(BaseModel):
+    text: str
+
+
+class QuickDetectResponse(BaseModel):
+    source_lang: str | None
+    confidence: str
+    explanation: str
+
+
+class QuickTranslateRequest(BaseModel):
+    text: str
+    source_lang: str
+    target_lang: str
+
+
+class QuickTranslateResponse(BaseModel):
+    translated_text: str
+    risk_score: float
+
+
 # ---------------------------------------------------------------------------
 # F1: Document History
 # ---------------------------------------------------------------------------
@@ -346,11 +367,16 @@ async def document_progress(document_id: str, db: Session = Depends(get_db)):
             if doc.status == "uploaded":
                 yield f"data: {json.dumps({'status': 'processing', 'step': 'parsing'})}\n\n"
             else:
+                processing_meta = (doc.doc_metadata or {}).get("processing") or {}
                 counts = document_counts(db, doc.id)
                 total = counts["segments"]
                 done = counts["approved"] + counts["needs_review"] + counts["memory_applied"]
                 
-                if total == 0:
+                if processing_meta:
+                    meta_total = int(processing_meta.get("total_segments") or 0)
+                    meta_done = int(processing_meta.get("local_segments") or 0)
+                    yield f"data: {json.dumps({'status': 'processing', 'step': 'translating', 'progress': meta_done, 'total': meta_total})}\n\n"
+                elif total == 0:
                     yield f"data: {json.dumps({'status': 'processing', 'step': 'parsing'})}\n\n"
                 elif done < total:
                     yield f"data: {json.dumps({'status': 'processing', 'step': 'translating', 'progress': done, 'total': total})}\n\n"
@@ -360,3 +386,68 @@ async def document_progress(document_id: str, db: Session = Depends(get_db)):
             await asyncio.sleep(0.5)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+# ---------------------------------------------------------------------------
+# F5: Quick Actions (CLI / Simple Integration)
+# ---------------------------------------------------------------------------
+
+@router.post("/quick-detect", response_model=QuickDetectResponse)
+def quick_detect(payload: QuickDetectRequest):
+    from sanad_api.services.language_detection import detect_source_language_from_text
+    
+    if not payload.text.strip():
+        raise HTTPException(status_code=400, detail="Text cannot be empty.")
+        
+    detection = detect_source_language_from_text(payload.text)
+    return QuickDetectResponse(
+        source_lang=detection.source_lang,
+        confidence=detection.confidence,
+        explanation=detection.explanation
+    )
+
+@router.post("/quick-translate", response_model=QuickTranslateResponse)
+async def quick_translate(payload: QuickTranslateRequest):
+    from sanad_api.services.risk import score_translation
+    from sanad_api.services.providers import get_provider, TranslationBatchRequest, TranslationSegmentRequest
+    from sanad_api.config import get_settings
+    
+    if not payload.text.strip():
+        raise HTTPException(status_code=400, detail="Text cannot be empty.")
+        
+    settings = get_settings()
+    provider = get_provider(settings.active_provider)
+    
+    # 1. Raw Fast Translate
+    req = TranslationBatchRequest(
+        source_lang=payload.source_lang,
+        target_lang=payload.target_lang,
+        domain="public_service",
+        subdomain="",
+        segments=[
+            TranslationSegmentRequest(
+                segment_id="quick",
+                source_text=payload.text,
+                protected_entities=[],
+                glossary_hits=[]
+            )
+        ]
+    )
+    
+    results = await provider.translate_batch(req)
+    if not results:
+        raise HTTPException(status_code=500, detail="Translation failed.")
+        
+    translated_text = results[0].translated_text
+    
+    # 2. Basic Audit Scoring
+    score, _ = score_translation(
+        source_text=payload.text,
+        translated_text=translated_text,
+        protected_entities=[],
+        glossary_hits=[]
+    )
+
+    return QuickTranslateResponse(
+        translated_text=translated_text,
+        risk_score=score
+    )

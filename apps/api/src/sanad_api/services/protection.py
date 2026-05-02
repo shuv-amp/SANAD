@@ -5,7 +5,7 @@ ENTITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("email", re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")),
     ("url", re.compile(r"https?://[^\s,;]+", re.IGNORECASE)),
     ("money", re.compile(r"(?:NPR|Rs\.?|रु\.?|\$)\s?\d[\d,]*(?:\.\d+)?", re.IGNORECASE)),
-    ("date", re.compile(r"\b(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\b")),
+    ("date", re.compile(r"\b(?:[0-9०-९]{4}[-/][0-9०-९]{1,2}[-/][0-9०-९]{1,2}|[0-9०-९]{1,2}[-/][0-9०-९]{1,2}[-/][0-9०-९]{2,4})\b")),
     ("ward", re.compile(r"\bWard\s*(?:No\.?|Number)?\s*[-:]?\s*\d+\b", re.IGNORECASE)),
     (
         "id",
@@ -15,8 +15,8 @@ ENTITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         ),
     ),
     ("id", re.compile(r"\b[A-Z]{2,}(?:-[A-Z0-9]{2,})+\b")),
-    ("phone", re.compile(r"(?:\+977[-\s]?)?(?:\d[-\s]?){7,12}\d")),
-    ("number", re.compile(r"\b\d+(?:[,.]\d+)*\b")),
+    ("phone", re.compile(r"(?:\+[9९][7७]{2}[-\s]?)?(?:[0-9०-९][-\s]?){7,12}[0-9०-९]")),
+    ("number", re.compile(r"\b[0-9०-९]+(?:[,.][0-9०-९]+)*\b")),
 ]
 
 

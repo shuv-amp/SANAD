@@ -1,39 +1,72 @@
-import { useEffect, useState, useRef } from "react";
+import { type ChangeEvent, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes, useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes
 } from "react";
-import { ChevronDown, Download } from "lucide-react";
+import { ChevronDown, Download, RotateCw } from "lucide-react";
 
 /* ──────────────────────────────────────────────────────────
   Core UI components
   ────────────────────────────────────────────────────────── */
 
-export function Button({ className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+export function Button({ 
+  className = "", 
+  loading = false,
+  children,
+  ...props 
+}: ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) {
   return (
     <button
+      disabled={loading || props.disabled}
       className={`inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#1a5c3a] px-5 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(15,23,18,0.2),0_1px_1px_rgba(15,23,18,0.1)] transition-all duration-200 hover:bg-[#164e32] hover:shadow-[0_2px_6px_rgba(15,23,18,0.22)] hover:-translate-y-[0.5px] active:translate-y-0 active:shadow-[0_1px_2px_rgba(15,23,18,0.15)] focus:outline-none focus:ring-2 focus:ring-[#2d8a5e]/30 focus:ring-offset-1 disabled:cursor-not-allowed disabled:bg-[var(--surface-hover)] disabled:text-[var(--text-tertiary)] disabled:shadow-none disabled:translate-y-0 ${className}`}
       {...props}
-    />
+    >
+      {loading && <RotateCw className="h-4 w-4 animate-spin" />}
+      {children}
+    </button>
   );
 }
 
-export function SecondaryButton({ className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+export function DangerousButton({ 
+  className = "", 
+  loading = false,
+  children,
+  ...props 
+}: ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) {
   return (
     <button
+      disabled={loading || props.disabled}
+      className={`inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[var(--gradient-danger)] px-5 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(185,28,28,0.2),0_1px_1px_rgba(185,28,28,0.1)] transition-all duration-200 hover:opacity-90 hover:shadow-[0_2px_6px_rgba(185,28,28,0.22)] hover:-translate-y-[0.5px] active:translate-y-0 active:shadow-[0_1px_2px_rgba(185,28,28,0.15)] focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:ring-offset-1 disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50 disabled:translate-y-0 ${className}`}
+      {...props}
+    >
+      {loading && <RotateCw className="h-4 w-4 animate-spin" />}
+      {children}
+    </button>
+  );
+}
+
+export function SecondaryButton({ 
+  className = "", 
+  loading = false,
+  children,
+  ...props 
+}: ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) {
+  return (
+    <button
+      disabled={loading || props.disabled}
       className={`inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[var(--border-light)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] shadow-[0_1px_2px_rgba(28,25,23,0.05)] transition-all duration-200 hover:border-[var(--border-medium)] hover:bg-[var(--surface-hover)] hover:shadow-[0_2px_4px_rgba(28,25,23,0.08)] hover:-translate-y-[0.5px] active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[var(--border-light)] disabled:cursor-not-allowed disabled:border-[var(--border-light)] disabled:bg-[var(--surface-page)] disabled:text-[var(--text-tertiary)] disabled:shadow-none disabled:translate-y-0 ${className}`}
       {...props}
-    />
+    >
+      {loading && <RotateCw className="h-4 w-4 animate-spin" />}
+      {children}
+    </button>
   );
 }
 
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`h-12 w-full rounded-lg border border-[var(--border-medium)] bg-[var(--surface-card)] px-3.5 text-sm text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-all duration-200 placeholder:text-[var(--text-tertiary)] hover:border-[var(--text-secondary)] focus:border-[#2d8a5e] focus:ring-2 focus:ring-[#2d8a5e]/15 focus:shadow-[0_0_0_1px_rgba(45,138,94,0.1)] disabled:bg-[var(--surface-page)] disabled:text-[var(--text-tertiary)] ${className}`}
+      className={`h-12 w-full rounded-lg border border-[var(--border-medium)] bg-[var(--surface-card)] px-3.5 text-sm text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-all duration-200 placeholder:text-[var(--text-tertiary)] hover:border-[var(--text-secondary)] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/15 focus:shadow-[0_0_0_1px_rgba(79,70,229,0.1)] disabled:bg-[var(--surface-page)] disabled:text-[var(--text-tertiary)] ${className}`}
       {...props}
     />
   );
@@ -43,7 +76,7 @@ export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSe
   return (
     <div className="relative w-full">
       <select
-        className={`h-12 w-full appearance-none rounded-lg border border-[var(--border-medium)] bg-[var(--surface-card)] px-3.5 pr-11 text-sm font-medium text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-all duration-200 hover:border-[var(--text-secondary)] focus:border-[#2d8a5e] focus:ring-2 focus:ring-[#2d8a5e]/15 disabled:bg-[var(--surface-page)] disabled:text-[var(--text-tertiary)] ${className}`}
+        className={`h-12 w-full appearance-none rounded-lg border border-[var(--border-medium)] bg-[var(--surface-card)] px-3.5 pr-11 text-sm font-medium text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-all duration-200 hover:border-[var(--text-secondary)] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/15 disabled:bg-[var(--surface-page)] disabled:text-[var(--text-tertiary)] ${className}`}
         {...props}
       />
       <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-[var(--text-tertiary)]">
@@ -53,25 +86,41 @@ export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSe
   );
 }
 
-export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(({ className = "", value, ...props }, ref) => {
+  const internalRef = useRef<HTMLTextAreaElement>(null);
+  
+  useImperativeHandle(ref, () => internalRef.current!);
+
+  useEffect(() => {
+    const textarea = internalRef.current;
+    if (!textarea) return;
+    
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [value]);
+
   return (
     <textarea
-      className={`min-h-[96px] w-full resize-y rounded-lg border border-[var(--border-medium)] bg-[var(--surface-card)] px-3 py-2.5 text-[15px] leading-6 text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-all duration-200 hover:border-[var(--text-secondary)] focus:border-[#2d8a5e] focus:ring-2 focus:ring-[#2d8a5e]/15 disabled:bg-[var(--surface-page)] disabled:text-[var(--text-tertiary)] ${className}`}
+      ref={internalRef}
+      className={`w-full resize-none overflow-hidden rounded-lg border border-[var(--border-medium)] bg-[var(--surface-card)] px-3 py-2.5 text-[15px] leading-6 text-[var(--text-primary)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-secondary)] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/15 disabled:bg-[var(--surface-page)] disabled:text-[var(--text-tertiary)] break-words [overflow-wrap:anywhere] ${className}`}
+      value={value}
       {...props}
     />
   );
-}
+});
 
-export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "risk" | "memory" | "glossary" | "approved" | "status"; children: ReactNode }) {
+export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "risk" | "high" | "memory" | "glossary" | "success" | "status" | "repaired"; children: ReactNode }) {
   const tones = {
     neutral: "border-[var(--border-medium)] bg-[var(--surface-hover)] text-[var(--text-secondary)]",
     status: "border-[#2d8a5e]/20 dark:border-[#2d8a5e]/40 bg-[#eef7f2] dark:bg-[#1a5c3a]/20 text-[#1a5c3a] dark:text-[#4ade80]",
     risk: "border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-950 dark:text-amber-400",
+    high: "border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-950 dark:text-red-400",
     memory: "border-sky-300 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 text-sky-950 dark:text-sky-400",
     glossary: "border-violet-300 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-500/10 text-violet-950 dark:text-violet-400",
-    approved: "border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-950 dark:text-emerald-400"
+    success: "border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-950 dark:text-emerald-400",
+    repaired: "border-indigo-300 dark:border-indigo-500/30 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-950 dark:text-indigo-400"
   };
-  return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none tracking-wide ${tones[tone]}`}>{children}</span>;
+  return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-tight tracking-wide break-words [overflow-wrap:anywhere] ${tones[tone]}`}>{children}</span>;
 }
 
 export function ExportDropdown({
@@ -182,14 +231,14 @@ const PIPELINE_STEPS = [
   { label: "Ready", detail: "Review queue" },
 ] as const;
 
-export function ProcessingPipeline({ active, documentId }: { active: boolean; documentId?: string | null }) {
+export function ProcessingPipeline({ active, documentId, onComplete }: { active: boolean; documentId?: string | null; onComplete?: () => void }) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [progressDetails, setProgressDetails] = useState<string>("");
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
     if (!active || !documentId) {
       setCurrentStep(0);
-      setProgressDetails("");
+      setProgress(null);
       return;
     }
 
@@ -207,33 +256,37 @@ export function ProcessingPipeline({ active, documentId }: { active: boolean; do
           const data = JSON.parse(event.data);
           if (data.status === "failed") {
             eventSource?.close();
-            setProgressDetails("Processing failed.");
+            setProgress(null);
+            onComplete?.();
           } else if (data.status === "processed") {
             // If backend finished super fast, animate the remaining steps quickly for visual satisfaction
             eventSource?.close();
-            setProgressDetails("");
+            setProgress(null);
             setCurrentStep((prev) => {
               if (prev < 3) {
                 let step = prev;
                 const interval = setInterval(() => {
                   step++;
                   setCurrentStep(step);
-                  if (step >= 3) clearInterval(interval);
+                  if (step >= 3) {
+                    clearInterval(interval);
+                    onComplete?.();
+                  }
                 }, 300); // 300ms per step fast-forward
               }
               return prev; // keep current for now, interval will update it
             });
           } else if (data.step === "parsing") {
             setCurrentStep((prev) => Math.max(prev, 0));
-            setProgressDetails("");
+            setProgress(null);
           } else if (data.step === "translating") {
             setCurrentStep((prev) => Math.max(prev, 1));
             if (data.progress !== undefined && data.total !== undefined) {
-              setProgressDetails(`(${data.progress}/${data.total} segments)`);
+              setProgress({ done: data.progress, total: data.total });
             }
           } else if (data.step === "scoring") {
             setCurrentStep((prev) => Math.max(prev, 2));
-            setProgressDetails("");
+            setProgress(null);
           }
         } catch (err) {}
       };
@@ -257,15 +310,28 @@ export function ProcessingPipeline({ active, documentId }: { active: boolean; do
   }, [active, documentId]);
 
   if (!active) return null;
+  const progressPercent = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null;
 
   return (
     <div className="sanad-animate-in rounded-lg border border-[var(--border-light)] bg-[var(--surface-card)] p-4 shadow-sm">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="sanad-spinner" />
-        <span className="text-sm font-semibold text-[var(--text-primary)]">
-          Processing document… {progressDetails && <span className="text-[var(--text-tertiary)] font-normal">{progressDetails}</span>}
-        </span>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="sanad-spinner" />
+          <span className="text-sm font-semibold text-[var(--text-primary)]">
+            Processing document
+          </span>
+        </div>
+        {progress ? (
+          <span className="shrink-0 text-xs font-semibold tabular-nums text-[var(--text-tertiary)]">
+            {progress.done}/{progress.total} segments{progressPercent !== null ? ` · ${progressPercent}%` : ""}
+          </span>
+        ) : null}
       </div>
+      {progress ? (
+        <div className="mb-4">
+          <MiniProgressBar value={progress.done} max={progress.total} tone="green" />
+        </div>
+      ) : null}
       <div className="flex items-center gap-1">
         {PIPELINE_STEPS.map((step, i) => {
           const isDone = i < currentStep;

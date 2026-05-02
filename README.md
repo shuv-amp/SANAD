@@ -1,6 +1,6 @@
 # SANAD: Trust-First Public-Service Document Translation
 
-SANAD is a hackathon prototype for public-service document translation. It combines parsing, protected-entity checks, scoped memory, human review, and export in a FastAPI backend with a React/Vite UI.
+SANAD is a prototype for public-service document translation. It combines parsing, protected-entity checks, scoped memory, human review, and export in a FastAPI backend with a React/Vite UI.
 
 ```
 Upload -> Parse -> Protect -> Memory -> Provider -> Review -> Export / Feedback pack
@@ -22,7 +22,8 @@ Upload -> Parse -> Protect -> Memory -> Provider -> Review -> Export / Feedback 
 ## What SANAD does
 
 - Parses DOCX, PDF, CSV/TSV, and text documents into reviewable segments.
-- Flags protected entities and glossary hits to guide review.
+- Evaluates translations with a rule-based Risk Engine to flag formatting, number, and entity errors.
+- Auto-repairs fixable translation errors by re-prompting the provider before human review.
 - Reuses scoped translation memory with provenance.
 - Exports translated files and a privacy-reduced feedback pack.
 
@@ -58,19 +59,19 @@ docker compose up --build -d
 
 Note: `docker-compose.yml` defaults to `SANAD_ACTIVE_PROVIDER=fixture` unless you set it in the environment.
 
-## Demo workflow
+## Testing workflow
 
-1) Generate fixtures (writes to `samples/demo/`):
+1) Generate test fixtures (writes to `samples/demo/`):
 
 ```bash
 make fixtures
 ```
 
-2) Reset demo state:
+2) Reset application state:
 - UI shortcut: `Shift + Option + R`
 - API: `POST /api/debug/reset-demo`
 
-3) Upload a demo document from `samples/demo/`.
+3) Upload a sample document from `samples/demo/`.
 4) Process, review, approve, and export.
 5) Download the feedback pack after all segments are approved.
 
@@ -107,6 +108,9 @@ SANAD_TMT_API_ENDPOINT=https://tmt.ilprl.ku.edu.np
 SANAD_TMT_API_KEY=
 SANAD_TMT_AUTH_METHOD=none
 SANAD_TMT_ENABLE_FALLBACK=true
+SANAD_TMT_PROVIDER_BATCH_SIZE=25
+SANAD_TMT_CONCURRENCY=8
+SANAD_TMT_RATE_LIMIT_DELAY=0.05
 SANAD_GOTENBERG_URL=http://gotenberg:3000
 ```
 

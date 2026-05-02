@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     active_provider: str = "tmt_api"
     enable_demo_reset: bool = True
 
-    # TMT API (Google TMT Hackathon 2026 /lang-translate endpoint)
+    # TMT API (Official /lang-translate endpoint)
     tmt_official_endpoint: str = "https://tmt.ilprl.ku.edu.np/lang-translate"
     tmt_api_key: str | None = None
 
@@ -23,9 +23,10 @@ class Settings(BaseSettings):
     # Shared TMT settings
     tmt_timeout_seconds: float = Field(default=20.0, gt=0)
     tmt_provider_batch_size: int = Field(default=25, ge=1)
+    tmt_concurrency: int = Field(default=8, ge=1)
     tmt_enable_fallback: bool = True
     tmt_health_check_interval: int = Field(default=60, ge=5)
-    tmt_rate_limit_delay: float = Field(default=0.25, ge=0)
+    tmt_rate_limit_delay: float = Field(default=0.05, ge=0)
 
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
