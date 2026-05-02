@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /workspace
 
 COPY apps/api /workspace/apps/api
-COPY samples /workspace/samples
+RUN mkdir -p /workspace/samples
 
 RUN pip install --no-cache-dir /workspace/apps/api
 
